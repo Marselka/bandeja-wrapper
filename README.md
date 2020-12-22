@@ -1,1 +1,1 @@
-# -samsung-avatar-dataset-sync
+## Sync camera capture phases with smartphone capture phase
