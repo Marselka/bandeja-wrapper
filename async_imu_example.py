@@ -100,7 +100,7 @@ def main():
     #print(resulting_offset_s, sm_gyro_time[0] - mcu_gyro_time[0], mcu_gyro_data.shape, sm_gyro_data.shape, mcu_gyro_time.shape, sm_gyro_time.shape)
 
     # Video duration before phase alignment
-    time.sleep(1)
+    time.sleep(2)
 
     # Phase alignment
     bashCommand = "rosrun mcu_interface align_mcu_cam_phase_client " + str(phase_out)
@@ -118,16 +118,17 @@ def main():
     
     # Some time needed to get a camrera frame
     time.sleep(0.1)
-    mcu_timestamp = mcu_imu_time[0]
-    s10_timestamp = mcu_timestamp + resulting_offset_s
+    #mcu_timestamp = mcu_imu_time[0]
+    #s10_timestamp = mcu_timestamp + resulting_offset_s
     
     # Send publish_s10_timestamp message to mcu.cpp
-    bashCommand = "rosrun mcu_interface publish_s10_timestamp_client " + str(mcu_timestamp) + " " + str(s10_timestamp)
+    # resulting_offset_s = s10_timestamp - mcu_timestamp
+    bashCommand = "rosrun mcu_interface publish_s10_to_mcu_offset_client " + str(resulting_offset_s)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
     output, error = process.communicate()
 
     # Video duration before phase alignment    
-    time.sleep(1)
+    time.sleep(2)
 
     remote.stop_video()
     remote.close()
