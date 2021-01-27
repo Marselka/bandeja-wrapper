@@ -11,7 +11,7 @@ from src.TimeSync import TimeSync2
 
 import matplotlib.pyplot as plt
 
-HOST = '10.30.65.166'  # The smartphone's IP address
+HOST = '10.30.65.167'  # The smartphone's IP address
 
 mcu_imu_time = []
 mcu_imu_data = []
@@ -57,7 +57,7 @@ def main():
     sm_gyro_data = sm_df.iloc[1:, :3].to_numpy()
     sm_gyro_time = sm_df.iloc[1:, 3].to_numpy() / 1e9
     
-    print(mcu_gyro_data.shape, sm_gyro_data.shape, mcu_gyro_time.shape, sm_gyro_time.shape)
+    #print(mcu_gyro_data.shape, sm_gyro_data.shape, mcu_gyro_time.shape, sm_gyro_time.shape)
 
     # Equalize lengths
     min_length = min(sm_gyro_time.shape[0], mcu_gyro_time.shape[0])
@@ -82,28 +82,37 @@ def main():
     time.sleep(0.1)
 
     # Compute resulting offset
-    resulting_offset_s = np.mean(sm_gyro_time - mcu_gyro_time) + comp_delay2    #resulting_offset_s = (sm_gyro_time[0] - mcu_gyro_time[0] + comp_delay2)
+    sm_mcu_clock_offset = np.mean(sm_gyro_time - mcu_gyro_time) + comp_delay2    #sm_mcu_clock_offset = (sm_gyro_time[0] - mcu_gyro_time[0] + comp_delay2)
 
     # Start the video in s10
-    phase_ns, duration_ns = remote.start_video()
-    phase_in = phase_ns / 1e9
-    phase_out = phase_in - resulting_offset_s
+    sm_remote_ts_ns, sm_frame_period_ns = remote.start_video()
+    sm_remote_ts = sm_remote_ts_ns / 1e9; sm_frame_period = sm_frame_period_ns / 1e9
+
+    mcu_desired_ts = sm_remote_ts - sm_mcu_clock_offset
 
     # Save some info 
-    print ("comp_delay2, phase_in, phase_out, resulting_offset_s, duration_ns")
-    print (comp_delay2, phase_in, phase_out, resulting_offset_s, duration_ns)
+    print "comp_delay2        ", comp_delay2
+    print "sm_mcu_clock_offset", sm_mcu_clock_offset
+    print "sm_remote_ts       ", sm_remote_ts
+    #print "sm_frame_period    ", sm_frame_period
+    print "np.mean(sm_gyro_time - mcu_gyro_time)", np.mean(sm_gyro_time - mcu_gyro_time)
+    print "sm_gyro_time[0]    ", sm_gyro_time[0]
+    print "sm_gyro_time[-1]   ", sm_gyro_time[-1]
+    print "mcu_gyro_time[0]   ", mcu_gyro_time[0]
+    print "mcu_desired_ts     ", mcu_desired_ts
+
     with open("out/" + time.strftime("%b_%d_%Y_%H_%M_%S") + ".txt", "w+") as out:
-            out.writelines('comp_delay2,phase_in,phase_out,resulting_offset_s\n' + \
-                str(comp_delay2) + ',' + str(phase_in) + ',' + str(phase_out) + ',' + str(resulting_offset_s) + \
+            out.writelines('comp_delay2,sm_remote_ts,mcu_desired_ts,sm_mcu_clock_offset\n' + \
+                str(comp_delay2) + ',' + str(sm_remote_ts) + ',' + str(mcu_desired_ts) + ',' + str(sm_mcu_clock_offset) + \
                 '\n'
     )
-    #print(resulting_offset_s, sm_gyro_time[0] - mcu_gyro_time[0], mcu_gyro_data.shape, sm_gyro_data.shape, mcu_gyro_time.shape, sm_gyro_time.shape)
+    #print(sm_mcu_clock_offset, sm_gyro_time[0] - mcu_gyro_time[0], mcu_gyro_data.shape, sm_gyro_data.shape, mcu_gyro_time.shape, sm_gyro_time.shape)
 
     # Video duration before phase alignment
     time.sleep(2)
 
     # Phase alignment
-    bashCommand = "rosrun mcu_interface align_mcu_cam_phase_client " + str(phase_out)
+    bashCommand = "rosrun mcu_interface align_mcu_cam_phase_client " + str(mcu_desired_ts)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
     output, error = process.communicate()
 
@@ -119,11 +128,11 @@ def main():
     # Some time needed to get a camrera frame
     time.sleep(0.1)
     #mcu_timestamp = mcu_imu_time[0]
-    #s10_timestamp = mcu_timestamp + resulting_offset_s
+    #s10_timestamp = mcu_timestamp + sm_mcu_clock_offset
     
     # Send publish_s10_timestamp message to mcu.cpp
-    # resulting_offset_s = s10_timestamp - mcu_timestamp
-    bashCommand = "rosrun mcu_interface publish_s10_to_mcu_offset_client " + str(resulting_offset_s)
+    # sm_mcu_clock_offset = s10_timestamp - mcu_timestamp
+    bashCommand = "rosrun mcu_interface publish_s10_to_mcu_offset_client " + str(sm_mcu_clock_offset)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
     output, error = process.communicate()
 
@@ -135,7 +144,7 @@ def main():
     
     # Show mean of omegas to visually oversee sync performance
     plt.plot(mcu_gyro_time, np.mean(mcu_gyro_data, axis=1))
-    plt.plot(sm_gyro_time - resulting_offset_s, np.mean(sm_gyro_data, axis=1), '--')
+    plt.plot(sm_gyro_time - sm_mcu_clock_offset, np.mean(sm_gyro_data, axis=1), '--')
 
     plt.show()
 
