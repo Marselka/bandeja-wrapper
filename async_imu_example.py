@@ -13,18 +13,35 @@ import matplotlib.pyplot as plt
 import signal
 import sys
 
-HOST = '10.30.65.137'  # The smartphone's IP address
+HOST = None  # The smartphone's IP address
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+def print_master(string):
+    print(bcolors.BOLD + bcolors.OKGREEN + 'MASTER MESSAGE: ' + string + bcolors.ENDC)
+
+
+
+subpr_list = []
 
 mcu_imu_time = []
 mcu_imu_data = []
-global stop_flag
 stop_flag = 0
 
 #global depth_cam_ts
-depth_cam_ts = []#{'secs': None, 'nsecs' : None}
+depth_cam_ts = None#[]#{'secs': None, 'nsecs' : None}
 
 #global mcu_cam_ts
-mcu_cam_ts = []#{'secs': None, 'nsecs' : None}
+mcu_cam_ts = None#[]#{'secs': None, 'nsecs' : None}
 
 def mcu_imu_callback(data):
     dat = data.header.stamp.secs + data.header.stamp.nsecs  / 1e9
@@ -35,35 +52,37 @@ def mcu_imu_callback(data):
 
 def depth_cam_callback(data):
     if data.header.seq == 1:
-        depth_cam_ts.append(data.header.stamp)
+        #depth_cam_ts.append(data.header.stamp)
+        global depth_cam_ts
+        depth_cam_ts = data.header.stamp
         print data.header.seq, data.header.frame_id
 
 def mcu_cam_callback(data):
     if data.header.seq == 12:
-        mcu_cam_ts.append(data.header.stamp)
+        #mcu_cam_ts.append(data.header.stamp)
+        global mcu_cam_ts
+        mcu_cam_ts = data.header.stamp
         print data.header.seq, data.header.frame_id
-        #global mcu_cam_ts
-        #mcu_cam_ts['secs'] = data.header.stamp.secs
-        #mcu_cam_ts['nsecs'] = data.header.stamp.nsecs
-
         
-def main():
+        
+def main(args):
+    if len(args) == 1:
+        print 'Please, provide smartphone IP-address. For instance, 10.30.65.166'
+        exit()
 
+    global HOST
+    HOST = args[1]
 
-    '''msg = TimeReference()
-    msg.header.frame_id = "mcu_depth_ts"
-    msg.header.stamp.secs = 1
-    msg.header.stamp.nsecs = 1
-    msg.time_ref.secs = 1
-    msg.time_ref.nsecs = 1
-
-    msg2 = TimeReference()
-    msg2.header.stamp = msg.header.stamp
-    print msg2#.header.stamp
-
-    exit()'''
     def signal_handler(sig, frame):
-        print('You pressed Ctrl+C. Exiting.')
+        print_master('You pressed Ctrl+C. Stopping and exiting')
+        #running_subpr_list = []
+        #for subpr in subpr_list:
+            #print subpr, subpr.poll()
+            #if subpr.poll() is not None:
+            #    subpr.terminate()
+            #    running_subpr_list.append(subpr)
+        #exit_codes = [p.wait() for p in running_subpr_list]
+
         global stop_flag
         stop_flag = 1
 
@@ -71,8 +90,10 @@ def main():
 
     remote = RemoteControl(HOST)
 
-    launch_process = subprocess.Popen("roslaunch data_collection data_collection_ns.launch".split())
-    time.sleep(3)
+    launch_subprocess = subprocess.Popen("roslaunch data_collection data_collection_ns.launch".split())
+    subpr_list.append(launch_subprocess)
+
+    time.sleep(5)
 
     rospy.init_node('listener', anonymous=True)
 
@@ -82,23 +103,23 @@ def main():
     end_duration = 5
     
     with ThreadPoolExecutor(max_workers=1) as executor:
-        print('imus gathering started')
+        print_master('IMUs gathering started')
         future = executor.submit(remote.get_imu, 1000 * (start_duration + main_duration + end_duration), False, True)
         #mcu_imu_listener()
 
         mcu_imu_listener = rospy.Subscriber("mcu_imu", Imu, mcu_imu_callback)
 
         time.sleep(start_duration)
-        print('start shaking')
+        print_master('Start shaking, please')
         time.sleep(main_duration)
-        print('put back')
+        print_master('Put back')
         time.sleep(end_duration)
 
         #rospy.signal_shutdown('it is enough')
         mcu_imu_listener.unregister()
 
         accel_data, gyro_data = future.result()
-        print('stopped')
+        print_master('IMUs gathering finished')
 
     # Get data from mcu imu
     mcu_gyro_data = np.asarray(mcu_imu_data) - np.asarray(mcu_imu_data)[:200].mean(axis=0) # Subtract bias in addition
@@ -139,22 +160,28 @@ def main():
     mcu_cam_listener = rospy.Subscriber("/mcu_cameras_ts", TimeReference, mcu_cam_callback)
 
     # Send start_mcu_cam_triggering command to mcu via mcu.cpp
-    cam_align_process = subprocess.Popen("rosrun mcu_interface start_mcu_cam_trigger_client".split()) 
-
+    cam_align_subprocess = subprocess.Popen("rosrun mcu_interface start_mcu_cam_trigger_client".split()) 
+    subpr_list.append(cam_align_subprocess)
+    
     # Some time needed to get a camrera frame and its info in mcu.cpp
     time.sleep(0.1)
     
-    pub = rospy.Publisher('wewerqwerqewrqwerddsdasd', TimeReference, latch=True, queue_size=10)
-    
-    while len(mcu_cam_ts) != 1 or len(depth_cam_ts) != 1:
+    publisher_s10_to_mcu_offset = rospy.Publisher('wewerqwerqewrqwerddsdasd', TimeReference, latch=True, queue_size=10)
+    global depth_cam_ts
+    global mcu_cam_ts
+    #while len(mcu_cam_ts) != 1 or len(depth_cam_ts) != 1:
+    cc = 0
+    while mcu_cam_ts == None or depth_cam_ts == None:
         time.sleep(0.01)
+        cc += 1
     depth_cam_listener.unregister()
     mcu_cam_listener.unregister()
+    
     msg = TimeReference()
     msg.header.frame_id = "mcu_depth_ts"
-    msg.header.stamp = mcu_cam_ts[0]
-    msg.time_ref = depth_cam_ts[0]
-    pub.publish(msg)
+    msg.header.stamp = mcu_cam_ts#[0]
+    msg.time_ref = depth_cam_ts#[0]
+    publisher_s10_to_mcu_offset.publish(msg)
 
     # Start video on s10
     sm_remote_ts_ns, sm_frame_period_ns = remote.start_video()
@@ -183,24 +210,25 @@ def main():
     '''
 
     # Phase alignment
-    align_camera_process = subprocess.Popen(("rosrun mcu_interface align_mcu_cam_phase_client " + str(mcu_desired_ts)).split())
-
+    align_camera_subprocess = subprocess.Popen(("rosrun mcu_interface align_mcu_cam_phase_client " + str(mcu_desired_ts)).split())
+    subpr_list.append(align_camera_subprocess)
     # Some time needed to get camrera frame data by mcu.cpp
     time.sleep(0.1)
 
     # Send publish_s10_timestamp message to mcu.cpp
     send_offset_subprocess = subprocess.Popen(("rosrun mcu_interface publish_s10_to_mcu_offset_client " + str(sm_mcu_clock_offset)).split())
-    
-    ### Add record 
+    subpr_list.append(send_offset_subprocess)
+# 3. Record data
+    record_subprocess = subprocess.Popen(('rosrun data_collection record_all.sh').split())
+    subpr_list.append(record_subprocess)    
 
-
-    print('Recording started.\nPress Ctrl+C to stop and exit')
+    print_master('Recording is started\nPress Ctrl+C to stop recording along with everything and exit')
 
     while stop_flag == 0:
         time.sleep(0.01);
 
     remote.stop_video()
     remote.close()
-    depth_cam_listener.unregister()
+    publisher_s10_to_mcu_offset.unregister()
 if __name__ == '__main__':
-    main()
+    main(sys.argv)
