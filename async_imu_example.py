@@ -55,14 +55,14 @@ def depth_cam_callback(data):
         #depth_cam_ts.append(data.header.stamp)
         global depth_cam_ts
         depth_cam_ts = data.header.stamp
-        print data.header.seq, data.header.frame_id
+        #print data.header.seq, data.header.frame_id
 
 def mcu_cam_callback(data):
     if data.header.seq == 12:
         #mcu_cam_ts.append(data.header.stamp)
         global mcu_cam_ts
         mcu_cam_ts = data.header.stamp
-        print data.header.seq, data.header.frame_id
+        #print data.header.seq, data.header.frame_id
         
         
 def main(args):
@@ -74,7 +74,6 @@ def main(args):
     HOST = args[1]
 
     def signal_handler(sig, frame):
-        print_master('You pressed Ctrl+C. Stopping and exiting')
         #running_subpr_list = []
         #for subpr in subpr_list:
             #print subpr, subpr.poll()
@@ -82,9 +81,10 @@ def main(args):
             #    subpr.terminate()
             #    running_subpr_list.append(subpr)
         #exit_codes = [p.wait() for p in running_subpr_list]
-
         global stop_flag
         stop_flag = 1
+
+        print_master('You pressed Ctrl+C. Stopping and exiting')
 
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -94,6 +94,9 @@ def main(args):
     subpr_list.append(launch_subprocess)
 
     time.sleep(5)
+    
+    print_master('Tap Enter to start Twist-n-Sync alignment process')
+    raw_input()
 
     rospy.init_node('listener', anonymous=True)
 
@@ -124,7 +127,7 @@ def main(args):
     # Get data from mcu imu
     mcu_gyro_data = np.asarray(mcu_imu_data) - np.asarray(mcu_imu_data)[:200].mean(axis=0) # Subtract bias in addition
     mcu_gyro_time = np.asarray(mcu_imu_time)
-    print(gyro_data[:200]) # Show the problem of the first measurement
+    #print(gyro_data[:200]) # Show the problem of the first measurement
 
     # Get data from s10 imu
     sm_df = pd.read_csv(StringIO(unicode(gyro_data)), header=None, index_col=False)
@@ -163,17 +166,16 @@ def main(args):
     cam_align_subprocess = subprocess.Popen("rosrun mcu_interface start_mcu_cam_trigger_client".split()) 
     subpr_list.append(cam_align_subprocess)
     
-    # Some time needed to get a camrera frame and its info in mcu.cpp
+    # Some time needed to get a camera frame and its info in mcu.cpp
     time.sleep(0.1)
     
-    publisher_s10_to_mcu_offset = rospy.Publisher('wewerqwerqewrqwerddsdasd', TimeReference, latch=True, queue_size=10)
+    publisher_depth_to_mcu_offset = rospy.Publisher('/depth_to_mcu_offset', TimeReference, latch=True, queue_size=10)
+
     global depth_cam_ts
     global mcu_cam_ts
-    #while len(mcu_cam_ts) != 1 or len(depth_cam_ts) != 1:
-    cc = 0
     while mcu_cam_ts == None or depth_cam_ts == None:
         time.sleep(0.01)
-        cc += 1
+
     depth_cam_listener.unregister()
     mcu_cam_listener.unregister()
     
@@ -181,7 +183,10 @@ def main(args):
     msg.header.frame_id = "mcu_depth_ts"
     msg.header.stamp = mcu_cam_ts#[0]
     msg.time_ref = depth_cam_ts#[0]
-    publisher_s10_to_mcu_offset.publish(msg)
+    publisher_depth_to_mcu_offset.publish(msg)
+
+    print_master('Tap Enter to start recording')
+    raw_input()
 
     # Start video on s10
     sm_remote_ts_ns, sm_frame_period_ns = remote.start_video()
@@ -224,11 +229,16 @@ def main(args):
 
     print_master('Recording is started\nPress Ctrl+C to stop recording along with everything and exit')
 
+    #publisher_indicator = rospy.Publisher('/indicator', TimeReference, latch=True, queue_size=10)
+
+
     while stop_flag == 0:
         time.sleep(0.01);
 
     remote.stop_video()
     remote.close()
-    publisher_s10_to_mcu_offset.unregister()
+    #mcu_cam_listener.unregister()
+    publisher_depth_to_mcu_offset.unregister()
+
 if __name__ == '__main__':
     main(sys.argv)
