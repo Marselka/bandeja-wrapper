@@ -233,23 +233,31 @@ def main(args):
 
     time.sleep(1)
     
-    print_master('Recording is started\nPress Ctrl+C to stop recording along with everything and exit')
+    print_master('Recording is started')#\nPress Ctrl+C to stop recording along with everything and exit')
 
     publisher_indicator = rospy.Publisher('/indicator_to_process_data', TimeReference, latch=True, queue_size=10)
 
-    flag_to_process = True
+    #flag_to_process = True
+    sequence = 1
+    print_master('Current sequence:', sequence)
+    print_master('Tap Enter to indicate the next sequence')
+
     while stop_flag == 0:
         input = select.select([sys.stdin], [], [], 0.01)[0]
         if input:
             value = sys.stdin.readline().rstrip() 
             if (value == ""):
-                flag_to_process = not flag_to_process
+                #flag_to_process = not flag_to_process
                 msg = TimeReference()
                 #msg.header.frame_id = "mcu_depth_ts"
                 msg.header.stamp = mcu_cam_ts_common
                 #msg.time_ref = depth_cam_ts
-                msg.source = str(flag_to_process)
+                msg.source = str(sequence)
                 publisher_indicator.publish(msg)
+        
+                print_master('Current sequence:', sequence)
+                print_master('Tap Enter to indicate the next sequence')
+
 
 
         #time.sleep(0.01);
