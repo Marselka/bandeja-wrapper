@@ -12,6 +12,8 @@ from src.TimeSync import TimeSync2
 import matplotlib.pyplot as plt
 import signal
 import sys
+import select
+
 
 HOST = None  # The smartphone's IP address
 
@@ -42,6 +44,7 @@ depth_cam_ts = None#[]#{'secs': None, 'nsecs' : None}
 
 #global mcu_cam_ts
 mcu_cam_ts = None#[]#{'secs': None, 'nsecs' : None}
+mcu_cam_ts_common = None
 
 def mcu_imu_callback(data):
     dat = data.header.stamp.secs + data.header.stamp.nsecs  / 1e9
@@ -63,7 +66,8 @@ def mcu_cam_callback(data):
         global mcu_cam_ts
         mcu_cam_ts = data.header.stamp
         #print data.header.seq, data.header.frame_id
-        
+    global mcu_cam_ts_common
+    mcu_cam_ts_common = data.header.stamp    
         
 def main(args):
     if len(args) == 1:
@@ -94,7 +98,7 @@ def main(args):
     subpr_list.append(launch_subprocess)
 
     time.sleep(5)
-    
+
     print_master('Tap Enter to start Twist-n-Sync alignment process')
     raw_input()
 
@@ -177,7 +181,7 @@ def main(args):
         time.sleep(0.01)
 
     depth_cam_listener.unregister()
-    mcu_cam_listener.unregister()
+    #mcu_cam_listener.unregister()
     
     msg = TimeReference()
     msg.header.frame_id = "mcu_depth_ts"
@@ -227,17 +231,32 @@ def main(args):
     record_subprocess = subprocess.Popen(('rosrun data_collection record_all.sh').split())
     subpr_list.append(record_subprocess)    
 
+    time.sleep(1)
+    
     print_master('Recording is started\nPress Ctrl+C to stop recording along with everything and exit')
 
-    #publisher_indicator = rospy.Publisher('/indicator', TimeReference, latch=True, queue_size=10)
+    publisher_indicator = rospy.Publisher('/indicator_to_process_data', TimeReference, latch=True, queue_size=10)
 
-
+    flag_to_process = True
     while stop_flag == 0:
-        time.sleep(0.01);
+        input = select.select([sys.stdin], [], [], 0.01)[0]
+        if input:
+            value = sys.stdin.readline().rstrip() 
+            if (value == ""):
+                flag_to_process = not flag_to_process
+                msg = TimeReference()
+                #msg.header.frame_id = "mcu_depth_ts"
+                msg.header.stamp = mcu_cam_ts_common
+                #msg.time_ref = depth_cam_ts
+                msg.source = str(flag_to_process)
+                publisher_indicator.publish(msg)
+
+
+        #time.sleep(0.01);
 
     remote.stop_video()
     remote.close()
-    #mcu_cam_listener.unregister()
+    mcu_cam_listener.unregister()
     publisher_depth_to_mcu_offset.unregister()
 
 if __name__ == '__main__':
