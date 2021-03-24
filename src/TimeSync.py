@@ -36,8 +36,8 @@ class TimeSync2:
         self.xx2_new = None
         self.time_delay = None
         self.cor = None
-        self.calibration_is_succeded = None
-        
+        self.calibration_is_succeeded = None
+
     def resample(self, accuracy=1e-3):
         # if... else... can be skipped if data has the same constant data rate
         # then just need `self.x1_new = self.x1` and `self.x2_new = self.x2`
@@ -102,7 +102,7 @@ class TimeSync2:
             pseudoinverse = np.linalg.inv(np.matmul(xx1_temp.T, xx1_temp))
             self.M = np.matmul( np.matmul(xx2_temp.T, xx1_temp), pseudoinverse)
             self.xx1_new = np.matmul(self.M, self.xx1_new.T).T
-            self.calibration_is_succeded = True
+            self.calibration_is_succeeded = True
         except:
             print('Cannot calibrate. Pseudoinverse is not defined\nKeeping data the same')
             self.calibration_is_succeded = False
