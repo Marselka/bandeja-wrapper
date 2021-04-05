@@ -9,6 +9,8 @@ import pandas as pd
 from io import StringIO
 from src.TimeSync import TimeSync2
 
+import matplotlib as mpl
+mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 import signal
 import sys
@@ -40,7 +42,6 @@ subpr_list = []
 
 mcu_imu_time = []
 mcu_imu_data = []
-stop_flag = 0
 
 depth_cam_ts = None
 mcu_cam_ts = None
@@ -80,7 +81,8 @@ def main(args):
 
     global HOST
     HOST = args[1]
-    # Register SIGINT handling
+    
+    # Register SIGINT handler
     def signal_handler(sig, frame):
         print_master('Exiting')
         running_subpr_list = []
@@ -96,38 +98,40 @@ def main(args):
                 pass
             remote.close()
         sys.exit()
-        #global stop_flag
-        #stop_flag = 1
 
     signal.signal(signal.SIGINT, signal_handler)
     # Starting smartphone remote control 
     global remote
     remote = RemoteControl(HOST)
-    # Launching ROS nodes
+    # Launching ROS data collection nodes
     launch_subprocess = subprocess.Popen("roslaunch data_collection data_collection_ns.launch".split())
     subpr_list.append(launch_subprocess)
-
+    # Wait until .launch launched completely
     time.sleep(5)
-    
-    print_master('Tap Enter to start Twist-n-Sync alignment process')
-    raw_input()
-    time.sleep(2)
+        
+    while True:
+        print_master('Tap Enter to start Twist-n-Sync alignment process')
+        input = select.select([sys.stdin], [], [], 2)[0]
+        if input:
+            value = sys.stdin.readline().rstrip() 
+            if (value == ""):
+                break
 
-    rospy.init_node('listener', anonymous=True)
+    rospy.init_node('master', anonymous=True)
 # 1. Twist-n-Sync 
     start_duration = 1
     main_duration = 4
     end_duration = 5
     # Gathering MCU and smartphone IMU data
     with ThreadPoolExecutor(max_workers=1) as executor:
-        print_master('IMUs gathering started')
+        print_master('IMUs gathering started. Wait, please')
         future = executor.submit(remote.get_imu, 1000 * (start_duration + main_duration + end_duration), False, True)
         #mcu_imu_listener()
 
         mcu_imu_listener = rospy.Subscriber("mcu_imu", Imu, mcu_imu_callback)
 
         time.sleep(start_duration)
-        print_master('Start shaking, please')
+        print_master('Start shaking')
         time.sleep(main_duration)
         print_master('Put back')
         time.sleep(end_duration)
