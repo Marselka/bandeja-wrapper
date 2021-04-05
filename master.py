@@ -58,17 +58,13 @@ def mcu_imu_callback(data):
 
 def depth_cam_callback(data):
     if data.header.seq == 1:
-        #depth_cam_ts.append(data.header.stamp)
         global depth_cam_ts
         depth_cam_ts = data.header.stamp
-        #print data.header.seq, data.header.frame_id
 
 def mcu_cam_callback(data):
     if data.header.seq == 12:
-        #mcu_cam_ts.append(data.header.stamp)
         global mcu_cam_ts
         mcu_cam_ts = data.header.stamp
-        #print data.header.seq, data.header.frame_id
     global mcu_cam_ts_common
     mcu_cam_ts_common = data.header.stamp    
         
@@ -122,6 +118,10 @@ def main(args):
     start_duration = 1
     main_duration = 4
     end_duration = 5
+
+    # Wait to avoid shaking
+    time.sleep(2)
+
     # Gathering MCU and smartphone IMU data
     with ThreadPoolExecutor(max_workers=1) as executor:
         print_master('IMUs gathering started. Wait, please')
