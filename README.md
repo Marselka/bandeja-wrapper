@@ -19,6 +19,9 @@ The workflow is the following:
 Recorded `*.bag` will appear in the CLI current directory.
 Recorded video form smartphone along with metadata will be stored on smartphone. It is needed to manually download them to storage.
 
+### Data extraction
+Use `bag-extractor`
+
 ### Installation
 `pip install -r requirements.txt`
 
