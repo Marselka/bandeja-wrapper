@@ -10,7 +10,7 @@ from io import StringIO
 from src.TimeSync import TimeSync2
 
 import matplotlib as mpl
-mpl.use('TkAgg')
+#mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 import signal
 import sys
@@ -103,7 +103,7 @@ def main(args):
     launch_subprocess = subprocess.Popen("roslaunch data_collection data_collection_ns.launch".split())
     subpr_list.append(launch_subprocess)
     # Wait until .launch launched completely
-    time.sleep(5)
+    time.sleep(2)
         
     while True:
         print_master('Tap Enter to start Twist-n-Sync alignment process')
@@ -142,6 +142,7 @@ def main(args):
         _, sm_ascii_gyro_data = future.result()
         print_master('IMUs gathering finished')
 
+    print_master('IMUs')
     # Get data from mcu imu
     mcu_gyro_data = np.asarray(mcu_imu_data) - np.asarray(mcu_imu_data)[:200].mean(axis=0) # Subtract bias in addition
     mcu_gyro_time = np.asarray(mcu_imu_time)
@@ -157,7 +158,7 @@ def main(args):
     mcu_gyro_data, mcu_gyro_time, sm_gyro_data, sm_gyro_time = \
     mcu_gyro_data[:min_length], mcu_gyro_time[:min_length], \
     sm_gyro_data[:min_length], sm_gyro_time[:min_length]
-
+    print_master('IMUs')
     # Obtain offset
     time_sync2 = TimeSync2(
         mcu_gyro_data, sm_gyro_data, mcu_gyro_time, sm_gyro_time, False
@@ -178,12 +179,12 @@ def main(args):
     sm_mcu_clock_offset = np.mean(sm_gyro_time - mcu_gyro_time) + comp_delay2 #sm_mcu_clock_offset = (sm_gyro_time[0] - mcu_gyro_time[0] + comp_delay2)
 
     # Show mean of omegas to visually oversee sync performance
-    plt.ion()
-    plt.plot(mcu_gyro_time, np.mean(mcu_gyro_data, axis=1))
-    plt.plot(sm_gyro_time - sm_mcu_clock_offset, np.mean(sm_gyro_data, axis=1), '--')
-    plt.show()
-    plt.pause(2)
-    plt.close()
+    #plt.ion()
+    #plt.plot(mcu_gyro_time, np.mean(mcu_gyro_data, axis=1))
+    #plt.plot(sm_gyro_time - sm_mcu_clock_offset, np.mean(sm_gyro_data, axis=1), '--')
+    #plt.show()
+    #plt.pause(2)
+    #plt.close()
 # 2. Azure camera alignment
     depth_cam_listener = rospy.Subscriber("/azure/depth/camera_info", CameraInfo, depth_cam_callback)
     mcu_cam_listener = rospy.Subscriber("/mcu_cameras_ts", TimeReference, mcu_cam_callback)
