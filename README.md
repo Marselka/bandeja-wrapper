@@ -29,4 +29,4 @@ Use `bag-extractor`
 
 - If after stopping script by Ctrl+C there message `MASTER MESSAGE: Exiting` appears, but CLI doesn't give access to new commands, wait -- probably Azure Kinect sensor consumes time for stopping its processes.  
 - If after stopping script by Ctrl+C there is no message `MASTER MESSAGE: Exiting`, but you see last word `done`, just tap Enter to get access to CLI.
-- To avoid problems with Azure, while working by SSH, run `export DISPLAY=:0` before starting the script.
+- To avoid problems with Azure, while working by SSH, run `export DISPLAY=:0` before starting the script every time connecting via SSH. Automotic user login must be set to ON.
