@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import signal
 import sys
 import select
-
+import os
 
 HOST = None  # The smartphone's IP address
 
@@ -125,7 +125,7 @@ def main(args):
     # Gathering MCU and smartphone IMU data
     with ThreadPoolExecutor(max_workers=1) as executor:
         print_master('IMUs gathering started. Wait, please')
-        future = executor.submit(remote.get_imu, 1000 * (start_duration + main_duration + end_duration), False, True)
+        future = executor.submit(remote.get_imu, 1000 * (start_duration + main_duration + end_duration), False, True, False)
         #mcu_imu_listener()
 
         mcu_imu_listener = rospy.Subscriber("mcu_imu", Imu, mcu_imu_callback)
@@ -139,10 +139,9 @@ def main(args):
         #rospy.signal_shutdown('it is enough')
         mcu_imu_listener.unregister()
 
-        _, sm_ascii_gyro_data = future.result()
+        _, sm_ascii_gyro_data, _ = future.result()
         print_master('IMUs gathering finished')
 
-    print_master('IMUs')
     # Get data from mcu imu
     mcu_gyro_data = np.asarray(mcu_imu_data) - np.asarray(mcu_imu_data)[:200].mean(axis=0) # Subtract bias in addition
     mcu_gyro_time = np.asarray(mcu_imu_time)
@@ -158,13 +157,14 @@ def main(args):
     mcu_gyro_data, mcu_gyro_time, sm_gyro_data, sm_gyro_time = \
     mcu_gyro_data[:min_length], mcu_gyro_time[:min_length], \
     sm_gyro_data[:min_length], sm_gyro_time[:min_length]
-    print_master('IMUs')
+
     # Obtain offset
     time_sync2 = TimeSync2(
         mcu_gyro_data, sm_gyro_data, mcu_gyro_time, sm_gyro_time, False
     )
     time_sync2.resample(accuracy=1)
     time_sync2.obtain_delay()
+    print_master('1')
     # Check if IMU calibration and consequently TimeSync has succeeded
     if time_sync2.calibration_is_succeeded == False or time_sync2.calibration_is_succeeded is None:
         print('IMU data calibration failed. Exiting')
@@ -173,18 +173,22 @@ def main(args):
         launch_subprocess.wait()
         sys.exit()
 
+    print_master('2')
     comp_delay2 = time_sync2.time_delay
+    M = time_sync2.M
 
     # Compute resulting offset
     sm_mcu_clock_offset = np.mean(sm_gyro_time - mcu_gyro_time) + comp_delay2 #sm_mcu_clock_offset = (sm_gyro_time[0] - mcu_gyro_time[0] + comp_delay2)
 
     # Show mean of omegas to visually oversee sync performance
-    #plt.ion()
-    #plt.plot(mcu_gyro_time, np.mean(mcu_gyro_data, axis=1))
-    #plt.plot(sm_gyro_time - sm_mcu_clock_offset, np.mean(sm_gyro_data, axis=1), '--')
-    #plt.show()
-    #plt.pause(2)
-    #plt.close()
+    plt.ion()
+    plt.plot(mcu_gyro_time, np.linalg.norm(mcu_gyro_data, axis=1))
+    plt.plot(sm_gyro_time - sm_mcu_clock_offset, np.linalg.norm(sm_gyro_data, axis=1), '--')
+    plt.show()
+    plt.pause(2)
+    plt.close()
+
+    print_master('3')
 # 2. Azure camera alignment
     depth_cam_listener = rospy.Subscriber("/azure/depth/camera_info", CameraInfo, depth_cam_callback)
     mcu_cam_listener = rospy.Subscriber("/mcu_cameras_ts", TimeReference, mcu_cam_callback)
@@ -196,7 +200,7 @@ def main(args):
     time.sleep(0.1)
     
     publisher_depth_to_mcu_offset = rospy.Publisher('/depth_to_mcu_offset', TimeReference, latch=True, queue_size=10)
-
+    print_master('4')
     global depth_cam_ts
     global mcu_cam_ts
     
@@ -213,6 +217,7 @@ def main(args):
             remote.close()
             sys.exit()
 
+    print_master('5')
     depth_cam_listener.unregister()
     #mcu_cam_listener.unregister()
     
@@ -220,6 +225,7 @@ def main(args):
     msg.header.frame_id = "mcu_depth_ts"
     msg.header.stamp = mcu_cam_ts#[0]
     msg.time_ref = depth_cam_ts#[0]
+    print_master('6')
     publisher_depth_to_mcu_offset.publish(msg)
 
     print_master('Tap Enter to start recording')
@@ -228,7 +234,7 @@ def main(args):
     # Start video on s10
     sm_remote_ts_ns, sm_frame_period_ns = remote.start_video()
     sm_remote_ts = sm_remote_ts_ns / 1e9;
-    #sm_frame_period = sm_frame_period_ns / 1e9
+    sm_frame_period = sm_frame_period_ns / 1e9
 
     # Compute mcu desired timestamp
     mcu_desired_ts = sm_remote_ts - sm_mcu_clock_offset
@@ -243,13 +249,44 @@ def main(args):
     print "sm_gyro_time[-1]   ", sm_gyro_time[-1]
     print "mcu_gyro_time[0]   ", mcu_gyro_time[0]
     print "mcu_desired_ts     ", mcu_desired_ts
-
+    
     with open("out/" + time.strftime("%b_%d_%Y_%H_%M_%S") + ".txt", "w+") as out:
-            out.writelines('comp_delay2,sm_remote_ts,mcu_desired_ts,sm_mcu_clock_offset\n' + \
-                str(comp_delay2) + ',' + str(sm_remote_ts) + ',' + str(mcu_desired_ts) + ',' + str(sm_mcu_clock_offset) + \
-                '\n'
+        out.writelines(
+            'comp_delay2,sm_remote_ts,mcu_desired_ts,sm_mcu_clock_offset\n' + \
+            str(comp_delay2) + ',' + str(sm_remote_ts) + ',' + str(mcu_desired_ts) + ',' + str(sm_mcu_clock_offset) + \
+            '\n'
     )
     '''
+    # Added for debugging
+    path = '/'.join( ('out', 'master', time.strftime("%m(%b)%d_%Y_%H%M%S")) )
+
+    os.mkdir(path)
+    #imu_data_frame = pd.DataFrame(np.vstack((t, data, t, data)).T)
+    #imu_data_frame.to_csv(
+    print(mcu_gyro_time.shape, mcu_gyro_data.shape, sm_gyro_time.shape, sm_gyro_data.shape)
+    pd.DataFrame(np.hstack((mcu_gyro_time.reshape(-1,1), mcu_gyro_data, sm_gyro_time.reshape(-1,1), sm_gyro_data))).to_csv(
+        '/'.join( (path, 'imu_data.csv') ),
+        header=['mcu_time', 'mcu_x', 'mcu_y', 'mcu_z', 'sm_time', 'sm_x', 'sm_y', 'sm_z'], 
+        index=False
+    )
+    #debug_data_frame = pd.DataFrame.from_dict({
+    pd.DataFrame.from_dict({
+        'comp_delay2' : [comp_delay2],
+        'sm_remote_ts' : [sm_remote_ts],
+        'sm_frame_period' :[sm_frame_period],
+        'mcu_desired_ts' : [mcu_desired_ts],
+        'sm_mcu_clock_offset' : [sm_mcu_clock_offset],
+        'M00' : M[0,0],
+        'M01' : M[0,1],
+        'M02' : M[0,2],
+        'M10' : M[1,0],
+        'M11' : M[1,1],
+        'M12' : M[1,2],
+        'M20' : M[2,0],
+        'M21' : M[2,1],
+        'M22' : M[2,2]
+    }).to_csv('/'.join( (path, 'debug_data.csv') ), index=False)
+    #debug_data_frame.to_csv('/'.join( (path, 'debug_data.csv') ), index=False)
 
     # Phase alignment
     align_camera_subprocess = subprocess.Popen(("rosrun mcu_interface align_mcu_cam_phase_client " + str(mcu_desired_ts)).split())#subpr_list.append(align_camera_subprocess)
