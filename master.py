@@ -104,12 +104,12 @@ def main(args):
     subpr_list.append(launch_subprocess)
     # Wait until .launch launched completely
     time.sleep(2)
-        
+
     while True:
         print_master('Tap Enter to start Twist-n-Sync alignment process')
         input = select.select([sys.stdin], [], [], 2)[0]
         if input:
-            value = sys.stdin.readline().rstrip() 
+            value = sys.stdin.readline().rstrip()
             if (value == ""):
                 break
 
@@ -117,15 +117,15 @@ def main(args):
 # 1. Twist-n-Sync 
     start_duration = 1
     main_duration = 4
-    end_duration = 5
+    end_duration = 4
 
     # Wait to avoid shaking
-    time.sleep(2)
+    time.sleep(1)
 
     # Gathering MCU and smartphone IMU data
     with ThreadPoolExecutor(max_workers=1) as executor:
         print_master('IMUs gathering started. Wait, please')
-        future = executor.submit(remote.get_imu, 1000 * (start_duration + main_duration + end_duration), False, True, False)
+        future = executor.submit(remote.get_imu, 1000 * (start_duration + main_duration + end_duration), True, True, False)
         #mcu_imu_listener()
 
         mcu_imu_listener = rospy.Subscriber("mcu_imu", Imu, mcu_imu_callback)
@@ -138,7 +138,7 @@ def main(args):
 
         #rospy.signal_shutdown('it is enough')
         mcu_imu_listener.unregister()
-
+        print_master('AAA')
         _, sm_ascii_gyro_data, _ = future.result()
         print_master('IMUs gathering finished')
 
@@ -164,7 +164,7 @@ def main(args):
     )
     time_sync2.resample(accuracy=1)
     time_sync2.obtain_delay()
-    print_master('1')
+
     # Check if IMU calibration and consequently TimeSync has succeeded
     if time_sync2.calibration_is_succeeded == False or time_sync2.calibration_is_succeeded is None:
         print('IMU data calibration failed. Exiting')
@@ -173,7 +173,6 @@ def main(args):
         launch_subprocess.wait()
         sys.exit()
 
-    print_master('2')
     comp_delay2 = time_sync2.time_delay
     M = time_sync2.M
 
@@ -188,7 +187,6 @@ def main(args):
     plt.pause(2)
     plt.close()
 
-    print_master('3')
 # 2. Azure camera alignment
     depth_cam_listener = rospy.Subscriber("/azure/depth/camera_info", CameraInfo, depth_cam_callback)
     mcu_cam_listener = rospy.Subscriber("/mcu_cameras_ts", TimeReference, mcu_cam_callback)
@@ -200,7 +198,7 @@ def main(args):
     time.sleep(0.1)
     
     publisher_depth_to_mcu_offset = rospy.Publisher('/depth_to_mcu_offset', TimeReference, latch=True, queue_size=10)
-    print_master('4')
+    
     global depth_cam_ts
     global mcu_cam_ts
     
@@ -217,7 +215,6 @@ def main(args):
             remote.close()
             sys.exit()
 
-    print_master('5')
     depth_cam_listener.unregister()
     #mcu_cam_listener.unregister()
     
@@ -225,7 +222,6 @@ def main(args):
     msg.header.frame_id = "mcu_depth_ts"
     msg.header.stamp = mcu_cam_ts#[0]
     msg.time_ref = depth_cam_ts#[0]
-    print_master('6')
     publisher_depth_to_mcu_offset.publish(msg)
 
     print_master('Tap Enter to start recording')
