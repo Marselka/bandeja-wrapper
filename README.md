@@ -1,7 +1,7 @@
 ## samsung-avatar-dataset-sync
 
 
-Uses ROS, [**OpenCamera Sensors**](https://arxiv.org/abs/2107.00987)<sup>1</sup> remote control API and [**Twist-n-Sync**](https://www.mdpi.com/1424-8220/21/1/68)<sup>2</sup> synchronization approach to record synchronized data from heterogenious hardware-software system.
+Uses ROS, [**OpenCamera Sensors**](https://github.com/MobileRoboticsSkoltech/OpenCamera-Sensors) remote control API and [**Twist-n-Sync**](https://github.com/MobileRoboticsSkoltech/twistnsync-python)<sup>1</sup> synchronization approach to record synchronized data from heterogenious hardware-software system.
 
 ### Installation
 `pip install -r requirements.txt`
@@ -32,17 +32,6 @@ Use `bag-extractor` and its instructions.
 - To avoid problems with Azure, while working by SSH, run `export DISPLAY=:0` before starting the script every time connecting via SSH. Automotic user login must be set to ON.
 
 <sup>1</sup>
-```
-@misc{akhmetyanov2021submillisecond,
-  title={Sub-millisecond Video Synchronization of Multiple Android Smartphones}, 
-  author={Azat Akhmetyanov and Anastasiia Kornilova and Marsel Faizullin and David Pozo and Gonzalo Ferrer},
-  year={2021},
-  eprint={2107.00987},
-  archivePrefix={arXiv},
-  primaryClass={cs.CV}
-}
-```
-<sup>2</sup>
 ```
 @article{faizullin2021twist,
   title={Twist-n-Sync: Software Clock Synchronization with Microseconds Accuracy Using MEMS-Gyroscopes},
